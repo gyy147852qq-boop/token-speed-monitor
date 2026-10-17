@@ -2,3 +2,7 @@ node_modules/
 *.log
 .DS_Store
 Thumbs.db
+build/
+dist/
+sea-config.json
+app/embedded-ui.generated.mjs

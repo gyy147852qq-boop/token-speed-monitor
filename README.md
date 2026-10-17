@@ -115,6 +115,22 @@ Dashboard features:
 - **One-click benchmark** — Ollama / LM Studio / llama.cpp: load time, prompt eval speed, tok/s
 - **Bilingual UI** — 中文 / English toggle in the header
 
+### Single-file `.exe` (nothing to install)
+
+`scripts/build-sea.ps1` bundles Node.js, the CLI, the local server and the dashboard UI into
+one Windows executable — **`dist/Token Speed Monitor.exe`** (~88 MB):
+
+```powershell
+npm install                                        # dev-only: esbuild, postject, rcedit
+powershell -ExecutionPolicy Bypass -File scripts\build-sea.ps1
+```
+
+- Double-click it: it starts a hidden local server and opens the dashboard.
+- **No Node.js, no installer, no internet** — it only talks to `127.0.0.1`.
+- The dashboard files are embedded in the binary; nothing is written outside it.
+- Closing the dashboard window shuts the app down automatically.
+- It also works as a CLI: `Token Speed Monitor.exe --cli summary --json --since 24h`.
+
 ### Windows app mode & tray
 
 | Launcher | What happens |

@@ -19,12 +19,19 @@
 import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
 import { join, basename, dirname } from "node:path";
 import { homedir } from "node:os";
+import { createRequire } from "node:module";
+import { pathToFileURL } from "node:url";
 
 const VERSION = "0.2.0";
 
-// node:sqlite is optional (only needed for the OpenCode database source)
+// node:sqlite is optional (only needed for the OpenCode database source).
+// createRequire keeps this working both as a normal ES module and when bundled
+// into a single-file executable (where import.meta.url is not available).
+const nodeRequire = createRequire(
+  typeof import.meta.url === "string" && import.meta.url ? import.meta.url : pathToFileURL(process.execPath).href
+);
 let sqliteMod = null;
-try { sqliteMod = await import("node:sqlite"); } catch { /* Node < 22.5 */ }
+try { sqliteMod = nodeRequire("node:sqlite"); } catch { /* Node < 22.5 */ }
 
 /* --------------------------------- CLI ---------------------------------- */
 

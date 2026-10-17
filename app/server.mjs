@@ -18,16 +18,32 @@
 import http from "node:http";
 import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { join, dirname, extname, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { platform } from "node:os";
 
-const here = dirname(fileURLToPath(import.meta.url));
+// `here` must also work when this module is bundled into a single-file executable
+// (import.meta.url is not available in CommonJS output).
+const here = (() => {
+  const url = typeof import.meta.url === "string" ? import.meta.url : "";
+  return url ? dirname(fileURLToPath(url)) : dirname(process.execPath);
+})();
 const CLI = join(here, "..", "scripts", "token-stats.mjs");
-const PUBLIC = join(here, "public");
 const PORT = Number(process.env.TOKEN_STATS_PORT || 7391);
 const HOST = "127.0.0.1";
 const URL_BASE = `http://${HOST}:${PORT}/`;
+
+// The single-file build (Token Speed Monitor.exe) extracts its UI assets to a
+// writable folder and points us at it; in a git checkout we read from disk.
+const PUBLIC = process.env.TOKEN_STATS_PUBLIC_DIR || join(here, "public");
+// "exe"  -> this process is the packaged app: ask ourselves via `--cli`
+// "script" -> plain node checkout: run scripts/token-stats.mjs directly
+const SPAWN_MODE = process.env.TOKEN_STATS_CLI_SPAWN === "exe" ? "exe" : "script";
+// "app" -> standalone application window (no browser tabs/address bar)
+const OPEN_MODE = process.env.TOKEN_STATS_OPEN_MODE === "app" ? "app" : "browser";
+// Exit when the dashboard window has been closed for a while (single-file build)
+const EXIT_WHEN_CLOSED = process.env.TOKEN_STATS_EXIT_WHEN_CLOSED === "1";
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -39,16 +55,41 @@ const MIME = {
   ".ico": "image/x-icon",
 };
 
+/**
+ * In the single-file build the dashboard files are inlined into the JavaScript
+ * bundle (app/embedded-ui.generated.mjs, written by scripts/build-sea.ps1), so
+ * the exe needs no side files. In a source checkout this import simply fails and
+ * the files are read from app/public instead.
+ */
+let embeddedPromise = null;
+function embeddedAssets() {
+  if (!embeddedPromise) {
+    embeddedPromise = import("./embedded-ui.generated.mjs")
+      .then((m) => m.default || {})
+      .catch(() => ({}));
+  }
+  return embeddedPromise;
+}
+
 /* ------------------------------- CLI bridge ------------------------------ */
 
 const cache = new Map();
+
+// In the packaged single-file build we re-enter ourselves with `--cli` instead of
+// spawning a separate script file.
+function cliInvocation(args) {
+  return SPAWN_MODE === "exe"
+    ? { cmd: process.execPath, args: ["--cli", ...args] }
+    : { cmd: process.execPath, args: [CLI, ...args] };
+}
 
 function runCli(args, { timeoutMs = 60000, cacheMs = 4000 } = {}) {
   const key = args.join(" ");
   const hit = cache.get(key);
   if (hit && Date.now() - hit.ts < cacheMs) return Promise.resolve(hit.data);
+  const { cmd, args: full } = cliInvocation(args);
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [CLI, ...args], { windowsHide: true });
+    const child = spawn(cmd, full, { windowsHide: true });
     let out = "";
     let err = "";
     const timer = setTimeout(() => {
@@ -73,8 +114,9 @@ function runCli(args, { timeoutMs = 60000, cacheMs = 4000 } = {}) {
 }
 
 async function runCliText(args, { timeoutMs = 60000 } = {}) {
+  const { cmd, args: full } = cliInvocation(args);
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [CLI, ...args], { windowsHide: true });
+    const child = spawn(cmd, full, { windowsHide: true });
     let out = "";
     let err = "";
     const timer = setTimeout(() => { child.kill(); reject(new Error("timeout")); }, timeoutMs);
@@ -120,11 +162,8 @@ function startWatch(req, res) {
   };
   send({ event: "hello" });
 
-  watchChild = spawn(
-    process.execPath,
-    [CLI, "watch", "--json", "--interval", String(process.env.TOKEN_STATS_WATCH_INTERVAL || 2)],
-    { windowsHide: true }
-  );
+  const { cmd, args } = cliInvocation(["watch", "--json", "--interval", String(process.env.TOKEN_STATS_WATCH_INTERVAL || 2)]);
+  watchChild = spawn(cmd, args, { windowsHide: true });
   let buf = "";
   watchChild.stdout.on("data", (chunk) => {
     buf += chunk.toString();
@@ -177,18 +216,41 @@ async function serveStatic(res, urlPath) {
       "cache-control": "no-store",
     });
     res.end(buf);
+    return;
   } catch {
+    // Fall back to the copy inlined into a single-file build.
+    const embedded = await embeddedAssets();
+    const text = embedded[rel.split("\\").join("/")];
+    if (typeof text === "string") {
+      const body = Buffer.from(text, "utf8");
+      res.writeHead(200, {
+        "content-type": MIME[extname(rel)] || "text/plain; charset=utf-8",
+        "content-length": body.length,
+        "cache-control": "no-store",
+      });
+      res.end(body);
+      return;
+    }
     res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
     res.end("not found");
   }
 }
 
+let lastPing = Date.now();
+let lastRequestAt = Date.now();
+
 const server = http.createServer(async (req, res) => {
+  lastRequestAt = Date.now();
   const url = new URL(req.url, URL_BASE);
   try {
     switch (url.pathname) {
       case "/api/health":
         return json(res, { ok: true, uptime: process.uptime() });
+      case "/api/ping":
+        // The dashboard pings while its window is open. In the single-file build the
+        // process shuts itself down once the window has been closed for a while.
+        lastPing = Date.now();
+        return json(res, { ok: true, t: lastPing });
       case "/api/list":
         return json(res, await runCli(["list", "--json"], { cacheMs: 15000 }));
       case "/api/summary":
@@ -230,8 +292,7 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-function openBrowser(url) {
-  if (process.env.TOKEN_STATS_NO_OPEN) return;
+function openDefaultBrowser(url) {
   const cmd =
     platform() === "win32" ? `start "" "${url}"`
     : platform() === "darwin" ? `open "${url}"`
@@ -239,6 +300,37 @@ function openBrowser(url) {
   try {
     spawn(cmd, { detached: true, stdio: "ignore", shell: true }).unref();
   } catch { /* headless environment */ }
+}
+
+function openBrowser(url) {
+  if (process.env.TOKEN_STATS_NO_OPEN) return;
+
+  // Packaged build: a standalone application window (no tabs, no address bar).
+  if (OPEN_MODE === "app") {
+    const candidates = [
+      join(process.env["ProgramFiles(x86)"] || "x", "Microsoft", "Edge", "Application", "msedge.exe"),
+      join(process.env.ProgramFiles || "x", "Microsoft", "Edge", "Application", "msedge.exe"),
+      join(process.env.ProgramFiles || "x", "Google", "Chrome", "Application", "chrome.exe"),
+      join(process.env["ProgramFiles(x86)"] || "x", "Google", "Chrome", "Application", "chrome.exe"),
+      join(process.env.LOCALAPPDATA || "x", "Google", "Chrome", "Application", "chrome.exe"),
+    ];
+    const startedAt = lastRequestAt;
+    for (const b of candidates) {
+      if (existsSync(b)) {
+        try {
+          spawn(b, [`--app=${url}`], { detached: true, stdio: "ignore" }).unref();
+          // Some browsers occasionally ignore --app (or leave the window blank).
+          // If nothing even requests the page shortly after, fall back to a tab.
+          setTimeout(() => {
+            if (lastRequestAt <= startedAt) openDefaultBrowser(url);
+          }, 6000).unref();
+          return;
+        } catch { /* fall through to the default browser */ }
+      }
+    }
+  }
+
+  openDefaultBrowser(url);
 }
 
 server.on("error", (e) => {
@@ -255,6 +347,18 @@ server.listen(PORT, HOST, () => {
   console.log(`Token Speed Monitor dashboard  ->  ${URL_BASE}`);
   console.log("Local only. Press Ctrl+C to stop.");
   openBrowser(URL_BASE);
+
+  // Single-file build: no console to press Ctrl+C in, so shut down automatically
+  // once the dashboard window has been gone for a while.
+  if (EXIT_WHEN_CLOSED) {
+    setInterval(() => {
+      if (Date.now() - lastPing < 25000) return;
+      console.log("Dashboard window closed - shutting down.");
+      stopWatch();
+      server.close(() => process.exit(0));
+      setTimeout(() => process.exit(0), 800).unref();
+    }, 5000).unref();
+  }
 });
 
 for (const sig of ["SIGINT", "SIGTERM"]) {

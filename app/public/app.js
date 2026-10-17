@@ -425,6 +425,8 @@
   applyI18n();
   loadAll();
   loadRecent();
+  // Keep-alive so the packaged app knows its window is still open (server watchdog).
+  setInterval(() => { fetch("/api/ping").catch(() => {}); }, 8000);
   // ?nolive=1 disables the live feed (useful for headless screenshots / embedding)
   if (!new URLSearchParams(location.search).has("nolive")) connectLive();
   setInterval(() => { if ($("autoRefresh").checked && !benchBusy) loadAll(); }, 15000);
