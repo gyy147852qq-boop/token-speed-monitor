@@ -172,8 +172,8 @@ main { padding: 20px 22px 40px; display: flex; flex-direction: column; gap: 18px
 .bars { display: flex; flex-direction: column; gap: 10px; }
 .bar-row { display: grid; grid-template-columns: minmax(90px, 1.1fr) 3fr auto; gap: 10px; align-items: center; font-size: 12px; }
 .bar-row .name { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bar-track { background: var(--panel2); height: 14px; border-radius: 7px; overflow: hidden; }
-.bar-fill { height: 100%; border-radius: 7px; background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+.bar-track { display: block; background: var(--panel2); height: 14px; border-radius: 7px; overflow: hidden; }
+.bar-fill { display: block; height: 100%; border-radius: 7px; background: linear-gradient(90deg, var(--accent), var(--accent2)); }
 .bar-fill.good { background: linear-gradient(90deg, #2bbd8a, #35d39a); }
 .bar-fill.warn { background: linear-gradient(90deg, #d99436, var(--warn)); }
 .bar-fill.bad  { background: linear-gradient(90deg, #d95555, var(--bad)); }

@@ -93,6 +93,11 @@ sources  opencode:on  claude:on  codex:off  gemini:off
 Prefer clicking to typing? Start the local dashboard — it opens automatically in your
 browser with stat cards, charts, a live speed feed and a one-click local-model benchmark.
 
+![Token Speed Monitor dashboard](docs/dashboard.png)
+
+<sub>Cards, token composition, per-model speed ranking, per-tool / per-model tables,
+local-model benchmark and the live speed feed — all in Chinese or English.</sub>
+
 | Platform | How to start |
 | --- | --- |
 | Windows | Double-click **`启动面板.cmd`** |

@@ -378,6 +378,7 @@
 
   applyI18n();
   loadAll();
-  connectLive();
+  // ?nolive=1 disables the live feed (useful for headless screenshots / embedding)
+  if (!new URLSearchParams(location.search).has("nolive")) connectLive();
   setInterval(() => { if ($("autoRefresh").checked && !benchBusy) loadAll(); }, 15000);
 })();
