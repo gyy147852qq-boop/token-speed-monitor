@@ -31,7 +31,7 @@ $browsers = @(
 )
 foreach ($b in $browsers) {
   if (Test-Path $b) {
-    Start-Process -FilePath $b -ArgumentList "--app=$url", "--new-window"
+    Start-Process -FilePath $b -ArgumentList "--app=$url"
     exit 0
   }
 }
