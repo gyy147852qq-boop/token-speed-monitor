@@ -137,7 +137,7 @@ agent should use it. Copy the folder into your agent's skills directory:
 | Agent | Skills directory (user-level) |
 | --- | --- |
 | Claude Code | `~/.claude/skills/token-speed-monitor/` |
-| OpenCode | `~/.config/opencode/skill/token-speed-monitor/` (or `.opencode/skill/` in a project) |
+| OpenCode | `~/.config/opencode/skills/token-speed-monitor/` (or `.opencode/skills/` in a project) |
 | Other agents | wherever your agent loads skills from |
 
 Then just ask, e.g. *"how many tokens did I use this week?"*, *"how fast is
