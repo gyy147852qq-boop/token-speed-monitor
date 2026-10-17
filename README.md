@@ -43,7 +43,7 @@ node scripts/token-stats.mjs bench      # live benchmark of local LLM servers
 
 ```text
 $ node scripts/token-stats.mjs summary
-AI TOKEN STATS v0.1.0  ·  2026/10/17 20:17:12  ·  since: all time
+AI TOKEN STATS v0.2.0  ·  2026/10/17 20:17:12  ·  since: all time
 
 TOTALS BY TOOL
   [opencode]  92 requests · 10 sessions
@@ -85,6 +85,39 @@ sources  opencode:on  claude:on  codex:off  gemini:off
 21:04:02  claude    claude-sonnet-4-5              96 out · 6.1s · 15.7 tok/s (approx)
 21:04:40  gemini    gemini-2.5-pro               340 tokens (150 in / 190 out) · no timing data
 ```
+
+---
+
+## 🖥️ Dashboard (GUI)
+
+Prefer clicking to typing? Start the local dashboard — it opens automatically in your
+browser with stat cards, charts, a live speed feed and a one-click local-model benchmark.
+
+| Platform | How to start |
+| --- | --- |
+| Windows | Double-click **`启动面板.cmd`** |
+| Any | `npm start`, or `node app/server.mjs` |
+| macOS / Linux | `node app/server.mjs` (uses `open` / `xdg-open`) |
+
+Then open <http://127.0.0.1:7391/> if the browser did not come up.
+
+Dashboard features:
+
+- **Stat cards** — total tokens, input, output + reasoning, cache reads, requests, sessions, average speed, cost
+- **Time ranges** — today / 7 days / 30 days / all time, with optional 15-second auto refresh
+- **Composition bar + tables** — per-tool and per-model totals with p50 / max speed
+- **Live speed feed** — a Server-Sent Events stream; every finished generation appears instantly
+- **One-click benchmark** — Ollama / LM Studio / llama.cpp: load time, prompt eval speed, tok/s
+- **Bilingual UI** — 中文 / English toggle in the header
+
+Notes:
+
+- Binds `127.0.0.1` only; nothing leaves your machine.
+- Change the port with `TOKEN_STATS_PORT=8080 node app/server.mjs`.
+- Skip the automatic browser launch with `TOKEN_STATS_NO_OPEN=1`.
+- Keep the launcher window open — closing it (or `Ctrl+C`) stops the server.
+
+---
 
 ## Commands
 

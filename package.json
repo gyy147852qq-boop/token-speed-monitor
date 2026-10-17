@@ -1,0 +1,15 @@
+{
+  "name": "token-speed-monitor",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Local dashboard for AI token usage totals and generation speed (OpenCode, Claude Code, Codex, Gemini CLI, Ollama, LM Studio, llama.cpp)",
+  "type": "module",
+  "scripts": {
+    "start": "node app/server.mjs",
+    "test": "node test/run-tests.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "MIT"
+}

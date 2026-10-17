@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Token Speed Monitor</title>
+<link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">&#9889;</span>
+    <div class="brand-text">
+      <h1 data-i18n="title">令牌速度监控器</h1>
+      <p class="sub" data-i18n="subtitle">本地 AI 工具 token 用量与生成速度</p>
+    </div>
+  </div>
+  <div class="controls">
+    <div class="segmented" id="since">
+      <button data-since="24h" class="active" data-i18n="since_24h">今天</button>
+      <button data-since="7d" data-i18n="since_7d">7 天</button>
+      <button data-since="30d" data-i18n="since_30d">30 天</button>
+      <button data-since="" data-i18n="since_all">全部</button>
+    </div>
+    <label class="check"><input type="checkbox" id="autoRefresh" checked /><span data-i18n="auto_refresh">自动刷新</span></label>
+    <button id="refreshBtn" class="btn" data-i18n="refresh">刷新</button>
+    <button id="langBtn" class="btn ghost">EN</button>
+  </div>
+</header>
+
+<div id="banner" class="banner hidden"></div>
+
+<main>
+  <section class="cards" id="cards"></section>
+
+  <section class="grid2">
+    <div class="panel">
+      <h2 data-i18n="composition">Token 构成</h2>
+      <div id="composition" class="stack-wrap"></div>
+    </div>
+    <div class="panel">
+      <h2 data-i18n="speed_rank">生成速度排行(tok/s)</h2>
+      <div id="speedRank" class="bars"></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2 data-i18n="per_tool">按工具统计</h2>
+    <div id="tools" class="table-wrap"></div>
+  </section>
+
+  <section class="panel">
+    <h2 data-i18n="per_model">按模型统计</h2>
+    <div id="models" class="table-wrap"></div>
+  </section>
+
+  <section class="grid2">
+    <div class="panel">
+      <h2 data-i18n="bench_title">本地模型测速</h2>
+      <div class="bench-row">
+        <select id="benchTarget" title="target">
+          <option value="auto">auto</option>
+          <option value="ollama">ollama</option>
+          <option value="lmstudio">lmstudio</option>
+          <option value="llamacpp">llamacpp</option>
+        </select>
+        <input id="benchModel" type="text" data-i18n-ph="bench_model" placeholder="模型名(可选)" />
+        <button id="benchBtn" class="btn primary" data-i18n="bench_run">开始测速</button>
+      </div>
+      <p class="hint" data-i18n="bench_hint">会真实调用本地模型生成一小段文本;首次运行可能需要加载权重,耗时较长。</p>
+      <div id="benchResult"></div>
+    </div>
+
+    <div class="panel">
+      <h2>
+        <span data-i18n="live_title">实时生成速度</span>
+        <span id="liveDot" class="dot"></span>
+      </h2>
+      <div class="live-now"><span id="liveNow">--</span><small>tok/s</small></div>
+      <p class="hint" data-i18n="live_hint">每次 AI 生成完成会实时显示速度;本面板运行期间持续监听。</p>
+      <ul id="liveList" class="live-list"></ul>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2 data-i18n="sources">数据源状态</h2>
+    <div id="sources" class="table-wrap"></div>
+  </section>
+</main>
+
+<footer>
+  <span data-i18n="privacy">数据全部来自本机,只读不修改任何文件;测速仅访问 localhost。</span>
+  <span id="ver"></span>
+</footer>
+
+<script src="/app.js"></script>
+</body>
+</html>

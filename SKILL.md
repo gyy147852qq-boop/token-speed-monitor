@@ -52,6 +52,20 @@ Use `--tool opencode,claude,codex,gemini` to filter sources.
    `approx` = derived from turn durations or token-count deltas, may include
    tool execution time.
 
+## Dashboard (GUI)
+
+This skill also ships a local dashboard for users who prefer a visual view
+(cards, charts, live speed feed, one-click local-model benchmark):
+
+```bash
+node app/server.mjs          # serves http://127.0.0.1:7391/ and opens the browser
+```
+
+- On Windows the launcher is `启动面板.cmd`; keep its window open to keep serving.
+- `TOKEN_STATS_PORT=<port>` changes the port, `TOKEN_STATS_NO_OPEN=1` skips the browser launch.
+- The dashboard reads the same data by calling this CLI with `--json`, so the commands
+  above remain the authoritative source for numbers you report.
+
 ## What each source provides
 
 | Source      | Where data comes from                                       | Speed                            |

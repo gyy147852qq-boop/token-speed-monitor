@@ -20,7 +20,7 @@ import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
 import { join, basename, dirname } from "node:path";
 import { homedir } from "node:os";
 
-const VERSION = "0.1.0";
+const VERSION = "0.2.0";
 
 // node:sqlite is optional (only needed for the OpenCode database source)
 let sqliteMod = null;
