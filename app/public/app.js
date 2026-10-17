@@ -28,6 +28,7 @@
       wall_clock: "总耗时", ttft: "首字延迟", bench_running: "测速中,请稍候…",
       bench_failed: "测速失败", live_waiting: "等待新的生成记录…", live_off: "实时连接已断开,正在重连…",
       cache_share: "占总量", of_total: "占总量", sources_kind_file: "日志", sources_kind_server: "本地服务",
+      no_speed: "无速度数据",
       updated: "更新于", loading: "加载中…", err_summary: "读取统计失败",
     },
     en: {
@@ -54,6 +55,7 @@
       bench_failed: "Benchmark failed", live_waiting: "Waiting for a new generation…",
       live_off: "Live feed disconnected, reconnecting…",
       cache_share: "of total", of_total: "of total", sources_kind_file: "logs", sources_kind_server: "local server",
+      no_speed: "no timing",
       updated: "updated", loading: "loading…", err_summary: "Failed to load stats",
     },
   };
@@ -326,29 +328,73 @@
 
   /* ------------------------------- live feed ----------------------------- */
 
+  const liveRows = new Map();
+
+  const buildLiveRow = (item) => {
+    const li = document.createElement("li");
+    li.dataset.id = item.id;
+    const time = new Date(item.ts).toLocaleTimeString();
+    if (item.kind === "generation") {
+      const approx = item.quality === "exact" ? "" : "~";
+      li.innerHTML =
+        `<span class="t">${esc(time)} · ${esc(item.model)}<br>${esc(item.tool)} · ${fmt(item.outputTokens)} tok · ${item.durationSec}s</span>` +
+        `<span class="s">${item.speed}${approx}<br><small class="t">tok/s</small></span>`;
+    } else {
+      li.innerHTML =
+        `<span class="t">${esc(time)} · ${esc(item.model)}<br>${esc(item.tool)} · ${fmt(item.totalTokens)} tok (${fmt(item.inputTokens)} in / ${fmt(item.outputTokens)} out)</span>` +
+        `<span class="s">—<br><small class="t">${esc(t("no_speed"))}</small></span>`;
+    }
+    return li;
+  };
+
+  // Insert or update in place: a message that finishes later replaces its row
+  // instead of appearing twice.
+  const liveUpsert = (item) => {
+    const list = $("liveList");
+    const li = buildLiveRow(item);
+    const old = liveRows.get(item.id);
+    if (old && old.isConnected) old.replaceWith(li);
+    else list.prepend(li);
+    liveRows.set(item.id, li);
+    if (item.kind === "generation") $("liveNow").textContent = item.speed;
+    while (list.children.length > 30) {
+      const last = list.lastElementChild;
+      if (!last) break;
+      liveRows.delete(last.dataset.id);
+      last.remove();
+    }
+  };
+
+  const renderLiveHistory = (items) => {
+    const list = $("liveList");
+    list.innerHTML = "";
+    liveRows.clear();
+    for (const item of items || []) liveUpsert(item);
+    if (!(items || []).length) list.innerHTML = `<li class="t">${esc(t("live_waiting"))}</li>`;
+  };
+
+  async function loadRecent() {
+    try {
+      const data = await getJSON("/api/recent?n=12");
+      renderLiveHistory(data.items);
+    } catch { /* keep whatever the live stream delivered */ }
+  }
+
   function connectLive() {
     const es = new EventSource("/api/watch");
     const dot = $("liveDot");
-    const list = $("liveList");
     es.onopen = () => { dot.className = "dot on"; };
     es.onerror = () => { dot.className = "dot off"; };
     es.onmessage = (ev) => {
       let msg;
       try { msg = JSON.parse(ev.data); } catch { return; }
-      if (msg.event === "hello") { dot.className = "dot on"; $("liveList").innerHTML = `<li class="t">${esc(t("live_waiting"))}</li>`; return; }
-      if (msg.event === "generation") {
+      if (msg.event === "closed") { dot.className = "dot off"; return; }
+      if (msg.event === "hello") { dot.className = "dot on"; return; }
+      if (msg.event === "history") { renderLiveHistory(msg.items); return; }
+      if (msg.event === "generation" || msg.event === "usage") {
         dot.className = "dot on";
-        $("liveNow").textContent = msg.speed;
-        const approx = msg.quality === "exact" ? "" : " ~";
-        const time = new Date(msg.ts).toLocaleTimeString();
-        const li = document.createElement("li");
-        li.innerHTML = `<span class="t">${esc(time)} · ${esc(msg.model)}<br>${esc(msg.tool)} · ${fmt(msg.outputTokens)} tok · ${msg.durationSec}s</span>
-                        <span class="s">${msg.speed}${approx}<br><small class="t">tok/s</small></span>`;
-        if (list.firstElementChild && list.firstElementChild.textContent === t("live_waiting")) list.innerHTML = "";
-        list.prepend(li);
-        while (list.children.length > 30) list.lastElementChild.remove();
+        liveUpsert({ ...msg, kind: msg.event });
       }
-      if (msg.event === "closed") dot.className = "dot off";
     };
   }
 
@@ -378,6 +424,7 @@
 
   applyI18n();
   loadAll();
+  loadRecent();
   // ?nolive=1 disables the live feed (useful for headless screenshots / embedding)
   if (!new URLSearchParams(location.search).has("nolive")) connectLive();
   setInterval(() => { if ($("autoRefresh").checked && !benchBusy) loadAll(); }, 15000);

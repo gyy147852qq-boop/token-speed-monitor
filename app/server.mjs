@@ -72,6 +72,23 @@ function runCli(args, { timeoutMs = 60000, cacheMs = 4000 } = {}) {
   });
 }
 
+async function runCliText(args, { timeoutMs = 60000 } = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [CLI, ...args], { windowsHide: true });
+    let out = "";
+    let err = "";
+    const timer = setTimeout(() => { child.kill(); reject(new Error("timeout")); }, timeoutMs);
+    child.stdout.on("data", (d) => (out += d));
+    child.stderr.on("data", (d) => (err += d));
+    child.on("error", reject);
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      if (code !== 0) return reject(new Error(err.trim() || `token-stats exited with ${code}`));
+      resolve(out);
+    });
+  });
+}
+
 const sinceArgs = (url) => {
   const raw = url.searchParams.get("since") || "";
   // only pass through values the CLI understands: 24h / 7d / 2026-01-01 ...
@@ -178,6 +195,23 @@ const server = http.createServer(async (req, res) => {
         return json(res, await runCli(["summary", "--json", ...sinceArgs(url)]));
       case "/api/speed":
         return json(res, await runCli(["speed", "--json", ...sinceArgs(url)]));
+      case "/api/recent": {
+        // Recent finished generations, so the live panel has content before the
+        // SSE stream delivers anything (and works even with ?nolive=1).
+        const n = Math.min(50, Math.max(1, parseInt(url.searchParams.get("n") || "12", 10) || 12));
+        const text = await runCliText(["watch", "--json", "--history", String(n), "--interval", "1", "--cycles", "1"], { timeoutMs: 30000 });
+        const items = [];
+        for (const line of text.split("\n")) {
+          const s = line.trim();
+          if (!s) continue;
+          try {
+            const m = JSON.parse(s);
+            if (m.event === "history" && Array.isArray(m.items)) items.push(...m.items);
+          } catch { /* ignore */ }
+        }
+        items.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+        return json(res, { items });
+      }
       case "/api/bench": {
         const target = (url.searchParams.get("target") || "auto").slice(0, 20);
         const model = (url.searchParams.get("model") || "").trim().slice(0, 80);

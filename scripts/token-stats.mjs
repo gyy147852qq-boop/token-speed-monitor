@@ -32,7 +32,7 @@ const argv = process.argv.slice(2);
 const opts = {
   cmd: null, target: null, since: null, tools: null, json: false,
   interval: 2, home: null, model: null, prompt: null, maxTokens: 128,
-  cycles: 0, help: false,
+  cycles: 0, history: 12, help: false,
 };
 
 for (let i = 0; i < argv.length; i++) {
@@ -48,6 +48,7 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === "--prompt") opts.prompt = next();
   else if (a === "--max-tokens") opts.maxTokens = Math.max(8, parseInt(next(), 10) || 128);
   else if (a === "--cycles") opts.cycles = Math.max(1, parseInt(next(), 10) || 1);
+  else if (a === "--history") opts.history = Math.max(0, parseInt(next(), 10) || 0);
   else if (a === "-h" || a === "--help") opts.help = true;
   else if (!a.startsWith("--")) {
     if (!opts.cmd) opts.cmd = a.toLowerCase();
@@ -286,7 +287,11 @@ function parseClaude({ recentMs = 0 } = {}) {
         };
         const prev = byId.get(id);
         if (!prev) byId.set(id, rec);
-        else if (rec.output > prev.output) Object.assign(prev, rec);
+        else if (rec.output > prev.output) {
+          const keepDuration = prev.durationMs; // keep a duration already paired to a turn
+          Object.assign(prev, rec);
+          prev.durationMs = keepDuration;
+        }
         lastAssistantId = id;
       } else if (e.type === "system" && lastAssistantId) {
         // Claude Code writes {"type":"system","subtype":"turn_duration","durationMs":N}
@@ -554,8 +559,8 @@ function cmdSpeed() {
 
 async function cmdWatch() {
   process.on("SIGINT", () => { console.log("\nstopped."); process.exit(0); });
-  const seen = new Set();
-  const seenSpeeds = new Set();
+  const seen = new Map();
+  const seenSpeeds = new Map();
   let first = true;
   let polls = 0;
 
@@ -568,10 +573,43 @@ async function cmdWatch() {
       console.log(`sources  ${det}`);
       console.log("");
     }
+    // A message that was still streaming when the watcher started is updated, not
+    // new: compare a fingerprint (timestamp + tokens + duration) instead of the id.
     const fresh = [];
-    for (const r of collected.records) if (!seen.has(r.id)) { seen.add(r.id); fresh.push(r); }
+    for (const r of collected.records) {
+      const f = `${r.ts || 0}:${r.output}`;
+      if (seen.get(r.id) !== f) { seen.set(r.id, f); fresh.push(r); }
+    }
     const freshSpeeds = [];
-    for (const s of collected.speeds) if (!seenSpeeds.has(s.id)) { seenSpeeds.add(s.id); freshSpeeds.push(s); }
+    for (const s of collected.speeds) {
+      const f = `${s.ts || 0}:${s.output}:${s.durationMs}`;
+      if (seenSpeeds.get(s.id) !== f) { seenSpeeds.set(s.id, f); freshSpeeds.push(s); }
+    }
+
+    // Replay recent history once so a fresh consumer is never blank.
+    if (first && opts.json && opts.history > 0) {
+      const sorted = [...collected.speeds].sort((a, b) => a.ts - b.ts).slice(-opts.history);
+      const items = sorted.map((s) => ({
+        id: s.id, kind: "generation", ts: s.ts, tool: s.tool, model: s.model,
+        outputTokens: s.output, durationSec: r1(s.durationMs / 1000),
+        speed: r1(tokPerSec(s)), quality: s.quality,
+      }));
+      if (items.length < 3) {
+        const withSpeed = new Set(collected.speeds.map((s) => s.id));
+        const recs = [...collected.records].sort((a, b) => a.ts - b.ts).slice(-opts.history);
+        for (const r of recs) {
+          if (withSpeed.has(r.id)) continue;
+          items.push({
+            id: r.id, kind: "usage", ts: r.ts, tool: r.tool, model: r.model,
+            inputTokens: r.input, outputTokens: r.output, reasoningTokens: r.reasoning,
+            cacheRead: r.cacheRead,
+            totalTokens: r.input + r.output + r.reasoning + r.cacheRead + r.cacheWrite,
+          });
+        }
+      }
+      items.sort((a, b) => a.ts - b.ts);
+      console.log(JSON.stringify({ event: "history", count: items.length, items }));
+    }
 
     if (!first) {
       const emitted = new Set();
@@ -579,7 +617,7 @@ async function cmdWatch() {
         const spd = r1(tokPerSec(s));
         if (opts.json) {
           console.log(JSON.stringify({
-            event: "generation", ts: s.ts, tool: s.tool, model: s.model, session: s.session,
+            event: "generation", id: s.id, ts: s.ts, tool: s.tool, model: s.model, session: s.session,
             outputTokens: s.output, durationSec: r1(s.durationMs / 1000), speed: spd, quality: s.quality,
           }));
         } else {
@@ -595,7 +633,7 @@ async function cmdWatch() {
         const total = r.input + r.output + r.reasoning + r.cacheRead + r.cacheWrite;
         if (opts.json) {
           console.log(JSON.stringify({
-            event: "usage", ts: r.ts, tool: r.tool, model: r.model, session: r.session,
+            event: "usage", id: r.id, ts: r.ts, tool: r.tool, model: r.model, session: r.session,
             inputTokens: r.input, outputTokens: r.output, reasoningTokens: r.reasoning,
             cacheRead: r.cacheRead, totalTokens: total,
           }));
@@ -834,6 +872,7 @@ Options:
   --tool <opencode,claude,codex,gemini>  Limit to specific tools
   --json                          Output JSON (watch: JSON Lines)
   --interval <seconds>            watch poll interval (default 2)
+  --history <n>                   watch: replay this many recent events on start (default 12, 0 = none)
   --model <name>                  bench: model to test (default: smallest available)
   --prompt <text>                 bench: prompt to use
   --max-tokens <n>                bench: max generated tokens (default 128)

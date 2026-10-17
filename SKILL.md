@@ -61,8 +61,15 @@ This skill also ships a local dashboard for users who prefer a visual view
 node app/server.mjs          # serves http://127.0.0.1:7391/ and opens the browser
 ```
 
-- On Windows the launcher is `启动面板.cmd`; keep its window open to keep serving.
+Windows users can use the bundled launchers instead:
+
+| Launcher | Behaviour |
+| --- | --- |
+| `启动面板.cmd` | server in the background + standalone app-style window (no browser chrome) |
+| `托盘常驻.cmd` | tray icon with a live tooltip (tok/s + tokens), menu for panel / benchmark / autostart / quit |
+
 - `TOKEN_STATS_PORT=<port>` changes the port, `TOKEN_STATS_NO_OPEN=1` skips the browser launch.
+- Add `?nolive=1` to the dashboard URL to disable the live SSE stream.
 - The dashboard reads the same data by calling this CLI with `--json`, so the commands
   above remain the authoritative source for numbers you report.
 

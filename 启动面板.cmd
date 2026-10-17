@@ -1,5 +1,5 @@
 @echo off
-title Token Speed Monitor Dashboard
+title Token Speed Monitor
 cd /d "%~dp0"
 
 where node >nul 2>nul
@@ -12,15 +12,6 @@ if errorlevel 1 (
   exit /b 1
 )
 
-echo ==========================================================
-echo  Token Speed Monitor - dashboard
-echo  The dashboard opens automatically in your browser.
-echo  Keep this window open; press Ctrl+C here to stop it.
-echo ==========================================================
-echo.
-
-node app\server.mjs
-
-echo.
-echo Dashboard stopped.
-pause
+REM Starts the local server (hidden) and opens the dashboard in an app-style window.
+start "" powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0app\open-window.ps1"
+exit

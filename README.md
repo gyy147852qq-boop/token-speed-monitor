@@ -115,12 +115,23 @@ Dashboard features:
 - **One-click benchmark** — Ollama / LM Studio / llama.cpp: load time, prompt eval speed, tok/s
 - **Bilingual UI** — 中文 / English toggle in the header
 
+### Windows app mode & tray
+
+| Launcher | What happens |
+| --- | --- |
+| `启动面板.cmd` | Starts the server in the background and opens the dashboard in a **standalone application window** (Edge/Chromium `--app` mode: no tabs, no address bar) — it looks like a real desktop app |
+| `托盘常驻.cmd` | Adds a **tray icon** that stays in the notification area: hover to see live tok/s + today's tokens, double-click to open the panel, right-click for *Benchmark* / *Start with Windows* / *Desktop shortcut* / *Quit* |
+
+The live panel is never blank: on start it replays the **last 12 finished generations**,
+and a message that was still streaming updates **in place** when it completes.
+
 Notes:
 
 - Binds `127.0.0.1` only; nothing leaves your machine.
 - Change the port with `TOKEN_STATS_PORT=8080 node app/server.mjs`.
 - Skip the automatic browser launch with `TOKEN_STATS_NO_OPEN=1`.
-- Keep the launcher window open — closing it (or `Ctrl+C`) stops the server.
+- Add `?nolive=1` to the dashboard URL to disable the live stream (handy for screenshots or embedding).
+- Closing the app window does not stop the server; use the tray menu → *Quit* (or close the console) to stop it.
 
 ---
 
